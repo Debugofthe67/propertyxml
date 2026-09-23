@@ -1,11 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
-    ['main.py'],             # <--- Updated path from src/main.py to main.py
-    pathex=[],
+    ['main.py'],
+    pathex=['.'],  # <--- Crucial: Tells PyInstaller to look in the root folder for 'src'
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['src', 'src.core', 'src.ui', 'src.core.plist_handler', 'src.ui.titlebar', 'src.ui.tab_manager', 'src.ui.dual_editor'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
