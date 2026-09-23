@@ -5,24 +5,25 @@ class TitleBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
-        self.setFixedHeight(36)
+        self.setFixedHeight(38)
         self.setStyleSheet("""
             QWidget {
                 background-color: #1e1e1e;
-                color: #cccccc;
+                color: #d1d1d1;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
                 font-size: 13px;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
+                border-top-left-radius: 10px;
+                border-top-right-radius: 10px;
+                border-bottom: 1px solid #2d2d2d;
             }
         """)
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setContentsMargins(14, 0, 14, 0)
         layout.setSpacing(8)
         
         # macOS-style Traffic Lights (Top-Left)
-        self.btn_close = self.create_traffic_light("#ff5f56", self.parent.close)
+        self.btn_close = self.create_traffic_light("#ff5f56", self.parent.close_current_tab_or_window)
         self.btn_min = self.create_traffic_light("#ffbd2e", self.parent.showMinimized)
         self.btn_max = self.create_traffic_light("#27c93f", self.toggle_maximize)
         
@@ -30,14 +31,12 @@ class TitleBar(QWidget):
         layout.addWidget(self.btn_min)
         layout.addWidget(self.btn_max)
         
-        # Title Label
-        layout.addSpacing(10)
+        layout.addSpacing(12)
         self.title_label = QLabel("PropertyXML")
-        self.title_label.setStyleSheet("color: #888888; font-weight: bold;")
+        self.title_label.setStyleSheet("color: #888888; font-weight: 600; border: none;")
         layout.addWidget(self.title_label)
         
         layout.addStretch()
-        
         self.start_pos = QPoint()
 
     def create_traffic_light(self, color, callback):
@@ -49,9 +48,7 @@ class TitleBar(QWidget):
                 border-radius: 6px;
                 border: none;
             }}
-            QPushButton:hover {{
-                opacity: 0.8;
-            }}
+            QPushButton:hover {{ opacity: 0.8; }}
         """)
         btn.clicked.connect(callback)
         return btn
@@ -62,7 +59,6 @@ class TitleBar(QWidget):
         else:
             self.parent.showMaximized()
 
-    # Window Dragging Logic for Frameless Window
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.start_pos = event.globalPosition().toPoint()
