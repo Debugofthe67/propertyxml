@@ -2,10 +2,19 @@
 
 a = Analysis(
     ['main.py'],
-    pathex=['.'],  # <--- Crucial: Tells PyInstaller to look in the root folder for 'src'
+    pathex=['.'],
     binaries=[],
     datas=[],
-    hiddenimports=['src', 'src.core', 'src.ui', 'src.core.plist_handler', 'src.ui.titlebar', 'src.ui.tab_manager', 'src.ui.dual_editor'],
+    hiddenimports=[
+        'src', 
+        'src.core', 
+        'src.ui', 
+        'src.core.plist_handler', 
+        'src.ui.titlebar', 
+        'src.ui.tab_manager', 
+        'src.ui.dual_editor',
+        'src.ui.main_window'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
