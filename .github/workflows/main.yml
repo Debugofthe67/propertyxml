@@ -1,63 +1,148 @@
-name: Build PropertyXML
+name: Build and Release PropertyXML
 
 on:
-  push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag for this release (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+        type: string
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || null }}
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          # --- WINDOWS ---
+          - name: Windows x64
+            os: windows-latest
+            python-arch: x64
             artifact_name: propertyxml-windows-x64.exe
-            output_name: propertyxml.exe
-          - os: macos-latest
-            artifact_name: propertyxml-macos-universal
-            output_name: propertyxml
-          - os: ubuntu-latest
+          - name: Windows x86
+            os: windows-latest
+            python-arch: x86
+            artifact_name: propertyxml-windows-x86.exe
+          - name: Windows ARM64
+            os: windows-11-arm64
+            python-arch: arm64
+            artifact_name: propertyxml-windows-arm64.exe
+
+          # --- LINUX ---
+          - name: Linux x64
+            os: ubuntu-latest
             artifact_name: propertyxml-linux-x64
-            output_name: propertyxml
+          - name: Linux x86
+            os: ubuntu-latest
+            container: i386/ubuntu:22.04
+            artifact_name: propertyxml-linux-x86
+          - name: Linux ARM64
+            os: ubuntu-24.04-arm64
+            artifact_name: propertyxml-linux-arm64
+
+          # --- MACOS ---
+          - name: macOS Intel
+            os: macos-15-intel
+            artifact_name: propertyxml-macos-intel
+          - name: macOS ARM64
+            os: macos-latest
+            artifact_name: propertyxml-macos-arm64
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Python
+      - name: Install Python Dependencies (Linux x86 Container)
+        if: matrix.name == 'Linux x86'
+        run: |
+          apt-get update && apt-get install -y python3 python3-pip python3-dev git
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Set up Python (Standard Environments)
+        if: matrix.name != 'Linux x86'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          architecture: ${{ matrix.python-arch || 'x64' }}
           cache: 'pip'
 
-      - name: Install Dependencies
+      - name: Install Dependencies (Standard Environments)
+        if: matrix.name != 'Linux x86'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build with PyInstaller Spec
+      - name: Build with PyInstaller
         run: |
           pyinstaller propertyxml.spec
 
-      - name: Rename Executable for Artifacts
+      - name: Prepare Artifacts Directory
         shell: bash
         run: |
           mkdir -p release_artifacts
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            mv dist/propertyxml.exe release_artifacts/${{ matrix.artifact_name }}
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp dist/propertyxml.exe release_artifacts/${{ matrix.artifact_name }}
           else
-            mv dist/propertyxml release_artifacts/${{ matrix.artifact_name }}
+            cp dist/propertyxml release_artifacts/${{ matrix.artifact_name }}
           fi
 
-      - name: Upload Portable Binary Artifact
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: release_artifacts/${{ matrix.artifact_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all_artifacts
+
+      - name: Generate Changelog Summary
+        id: changelog
+        shell: bash
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            CHANGES=$(git log --oneline -n 20 --format="- %s (%an)")
+          else
+            CHANGES=$(git log "$LAST_TAG..HEAD" --oneline --format="- %s (%an)")
+          fi
+          
+          delimiter="EOF_CHANGES"
+          echo "changelog<<$delimiter" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $delimiter
+
+      - name: Create Git Tag and GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version_tag }}
+          name: Release ${{ inputs.version_tag }}
+          body: |
+            Changes included in this release:
+            
+            ${{ steps.changelog.outputs.changelog }}
+          files: |
+            all_artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
