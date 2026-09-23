@@ -13,6 +13,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || null }}
 
     strategy:
       fail-fast: false
@@ -38,7 +39,9 @@ jobs:
             artifact_name: propertyxml-linux-x64
           - name: Linux x86
             os: ubuntu-latest
-            python-arch: x86
+            container:
+              image: i386/ubuntu:22.04
+              options: --platform linux/386
             artifact_name: propertyxml-linux-x86
           - name: Linux ARM64
             os: ubuntu-24.04-arm64
@@ -58,20 +61,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Multilib for Linux x86
+      - name: Install Python & Dependencies (Linux x86 Container)
         if: matrix.name == 'Linux x86'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-multilib g++-multilib
+          apt-get update && apt-get install -y python3 python3-pip python3-dev git
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
 
-      - name: Set up Python
+      - name: Set up Python (Standard Environments)
+        if: matrix.name != 'Linux x86'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           architecture: ${{ matrix.python-arch || 'x64' }}
           cache: 'pip'
 
-      - name: Install Dependencies
+      - name: Install Dependencies (Standard Environments)
+        if: matrix.name != 'Linux x86'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -141,3 +148,4 @@ jobs:
             all_artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
